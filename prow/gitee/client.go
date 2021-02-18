@@ -388,13 +388,47 @@ func (c *client) GetRepos(org string) ([]sdk.Project, error) {
 		if len(ps) == 0 {
 			break
 		}
-
-		p += 1
-
+		p++
 		r = append(r, ps...)
 	}
 
 	return r, nil
+}
+
+func (c *client) GetIssues(org, repo string, opts ListIssueOpt) ([]sdk.Issue, error) {
+	var result []sdk.Issue
+	setStr := func(t *optional.String, v string) {
+		if v != "" {
+			*t = optional.NewString(v)
+		}
+	}
+
+	opt := sdk.GetV5ReposOwnerRepoIssuesOpts{}
+	setStr(&opt.Sort, opts.Sort)
+	setStr(&opt.Direction, opts.Direction)
+	setStr(&opt.Labels, opts.Labels)
+	setStr(&opt.State, opts.State)
+
+	p := int32(1)
+	for {
+		opt.Page = optional.NewInt32(p)
+		issues, _, err := c.ac.IssuesApi.GetV5ReposOwnerRepoIssues(context.Background(), org, repo, &opt)
+		if err != nil {
+			return nil, formatErr(err, "get issues ")
+		}
+
+		if len(issues) == 0 {
+			break
+		}
+		p++
+		result = append(result, issues...)
+	}
+	return result, nil
+}
+
+func (c *client) GetIssue(org, repo, number string) (sdk.Issue, error) {
+	issue, _, err := c.ac.IssuesApi.GetV5ReposOwnerRepoIssuesNumber(context.Background(), org, repo, number, nil)
+	return issue, formatErr(err, "get issue")
 }
 
 func formatErr(err error, doWhat string) error {

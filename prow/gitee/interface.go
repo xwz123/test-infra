@@ -38,6 +38,8 @@ type Client interface {
 	MergePR(owner, repo string, number int, opt sdk.PullRequestMergePutParam) error
 
 	GetRepos(org string) ([]sdk.Project, error)
+	GetIssues(org, repo string, opts ListIssueOpt) ([]sdk.Issue, error)
+	GetIssue(org, repo, number string) (sdk.Issue, error)
 }
 
 type ListPullRequestOpt struct {
@@ -48,4 +50,11 @@ type ListPullRequestOpt struct {
 	Direction       string
 	MilestoneNumber int
 	Labels          []string
+}
+
+type ListIssueOpt struct {
+	State     string
+	Labels    string
+	Sort      string
+	Direction string
 }
