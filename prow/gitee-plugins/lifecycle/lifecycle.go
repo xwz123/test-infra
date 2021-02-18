@@ -31,6 +31,7 @@ type noteEventAction interface {
 	addLabel(lb string) error
 }
 
+
 type lifecycleClient interface {
 	AddPRLabel(org, repo string, number int, label string) error
 	RemovePRLabel(org, repo string, number int, label string) error

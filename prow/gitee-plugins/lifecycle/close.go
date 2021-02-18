@@ -50,8 +50,7 @@ func closeIssue(gc closeClient, log *logrus.Entry, e *sdk.NoteEvent) error {
 		response := "You can't close an  issue unless you authored it or you are a collaborator."
 		log.Infof("Commenting \"%s\".", response)
 		return gc.CreateGiteeIssueComment(
-			org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response),
-		)
+			org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response))
 	}
 	if err := gc.CloseIssue(org, repo, number); err != nil {
 		return fmt.Errorf("error close issue:%v", err)

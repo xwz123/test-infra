@@ -302,7 +302,7 @@ func (c *client) ClosePR(org, repo string, number int) error {
 		State:"closed",
 	}
 	_, err := c.UpdatePullRequest(org, repo, int32(number), opt)
-	return err
+	return formatErr(err,"close pr")
 }
 
 func (c *client) AssignPR(org, repo string, number int, logins []string) error {
@@ -447,6 +447,7 @@ func (c *client) ReplacePRAllLabels(owner, repo string, number int, labels []str
 	_, _, err := c.ac.PullRequestsApi.PutV5ReposOwnerRepoPullsNumberLabels(context.Background(), owner, repo, int32(number), opt)
 	return formatErr(err, "replace pr labels")
 }
+
 
 func (c *client) CloseIssue(owner, repo string, number string) error {
 	opt := sdk.IssueUpdateParam{
