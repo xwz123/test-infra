@@ -25,6 +25,12 @@ type lifecycle struct {
 	gec  gitee.Client
 }
 
+type noteEventAction interface {
+	GetLabels() ([]sdk.Label, error)
+	removeLabel(lb string) error
+	addLabel(lb string) error
+}
+
 type lifecycleClient interface {
 	AddPRLabel(org, repo string, number int, label string) error
 	RemovePRLabel(org, repo string, number int, label string) error
@@ -32,6 +38,7 @@ type lifecycleClient interface {
 	AddIssueLabel(org, repo, number, label string) error
 	RemoveIssueLabel(org, repo, number, label string) error
 	GetIssueLabels(org, repo, number string) ([]sdk.Label, error)
+	BotName() (string, error)
 }
 
 func NewLifeCycle(f plugins.GetPluginConfig, gec gitee.Client) plugins.Plugin {
@@ -63,7 +70,7 @@ func (l *lifecycle) HelpProvider(_ []prowConfig.OrgRepo) (*pluginhelp.PluginHelp
 		Usage:       "/[remove-]lifecycle <frozen|stale|rotten>",
 		Description: "Flags an issue or PR as frozen/stale/rotten",
 		Featured:    false,
-		WhoCanUse:   "Anyone can trigger this command.",
+		WhoCanUse:   "Anyone can trigger this command,an exception that /lifecycle <stale|rotten> only trigger by bot.",
 		Examples:    []string{"/lifecycle frozen", "/remove-lifecycle stale"},
 	})
 	return pluginHelp, nil
@@ -99,6 +106,7 @@ func (l *lifecycle) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 	if err := handleClose(l.gec, log, e); err != nil {
 		return err
 	}
+
 	return handle(l.gec, log, e)
 }
 
@@ -106,65 +114,96 @@ func isPr(et string) bool {
 	return et == "PullRequest"
 }
 
-func handle(gc lifecycleClient, log *logrus.Entry, e *sdk.NoteEvent) error {
-	// Only consider new comments.
-	if *e.Action != "comment" {
-		return nil
+func handle(gec lifecycleClient, log *logrus.Entry, e *sdk.NoteEvent) error {
+	var ac noteEventAction
+	if isPr(*(e.NoteableType)) {
+		ac = &prAction{e, gec}
+	} else {
+		ac = &issueAction{e, gec}
+	}
+	botName, err := gec.BotName()
+	if err != nil {
+		return err
 	}
 	for _, mat := range lifecycleRe.FindAllStringSubmatch(e.Comment.Body, -1) {
-		if err := handleOne(gc, log, e, mat); err != nil {
+		if !canHandOne(mat[1], mat[2], botName, e.Comment.User.Login) {
+			continue
+		}
+		if err := handleOne(ac, log, mat); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func handleOne(gc lifecycleClient, log *logrus.Entry, e *sdk.NoteEvent, mat []string) error {
-	isPr := isPr(*e.NoteableType)
+func handleOne(gc noteEventAction, log *logrus.Entry, mat []string) error {
 	remove := mat[1] != ""
 	cmd := mat[2]
 	lbl := "lifecycle/" + cmd
-	lbs, err := getLabels(gc, e, isPr)
+	lbs, err := gc.GetLabels()
 	if err != nil {
 		log.WithError(err).Errorf("Failed to get labels.")
 	}
 	if hasLabel(lbl, lbs) && remove {
-		return removeLabel(gc, e, isPr, lbl)
+		return gc.removeLabel(lbl)
 	}
 	if !hasLabel(lbl, lbs) && !remove {
 		for _, label := range lifecycleLabels {
 			if label != lbl && hasLabel(label, lbs) {
-				if err := removeLabel(gc, e, isPr, label); err != nil {
+				if err := gc.removeLabel(label); err != nil {
 					log.WithError(err).Errorf("Gitee failed to remove the following label: %s", label)
 				}
 			}
 		}
-		if err := addLabel(gc, e, isPr, lbl); err != nil {
+		if err := gc.addLabel(lbl); err != nil {
 			log.WithError(err).Errorf("Gitee failed to add the following label: %s", lbl)
 		}
 	}
 	return nil
 }
 
-func removeLabel(gc lifecycleClient, e *sdk.NoteEvent, pr bool, lbl string) error {
-	if pr {
-		return gc.RemovePRLabel(e.Repository.Namespace, e.Repository.Path, int(e.PullRequest.Number), lbl)
+func canHandOne(action, cmd, botName, userName string) bool {
+	if action != "" {
+		return true
 	}
-	return gc.RemoveIssueLabel(e.Repository.Namespace, e.Repository.Path, e.Issue.Number, lbl)
+	if cmd != "stale" && cmd != "rotten" {
+		return true
+	}
+	if botName == userName {
+		return true
+	}
+	return false
 }
 
-func getLabels(gc lifecycleClient, e *sdk.NoteEvent, isPr bool) ([]sdk.Label, error) {
-	if isPr {
-		return gc.GetPRLabels(e.Repository.Namespace, e.Repository.Path, int(e.PullRequest.Number))
-	}
-	return gc.GetIssueLabels(e.Repository.Namespace, e.Repository.Path, e.Issue.Number)
+type issueAction struct {
+	e   *sdk.NoteEvent
+	ghc lifecycleClient
 }
 
-func addLabel(gc lifecycleClient, e *sdk.NoteEvent, pr bool, lbl string) error {
-	if pr {
-		return gc.AddPRLabel(e.Repository.Namespace, e.Repository.Path, int(e.PullRequest.Number), lbl)
-	}
-	return gc.AddIssueLabel(e.Repository.Namespace, e.Repository.Path, e.Issue.Number, lbl)
+func (ia *issueAction) GetLabels() ([]sdk.Label, error) {
+	return ia.ghc.GetIssueLabels(ia.e.Repository.Namespace, ia.e.Repository.Path, ia.e.Issue.Number)
+}
+
+func (ia *issueAction) removeLabel(lb string) error {
+	return ia.ghc.RemoveIssueLabel(ia.e.Repository.Namespace, ia.e.Repository.Path, ia.e.Issue.Number, lb)
+}
+
+func (ia *issueAction) addLabel(lb string) error {
+	return ia.ghc.AddIssueLabel(ia.e.Repository.Namespace, ia.e.Repository.Path, ia.e.Issue.Number, lb)
+}
+
+type prAction issueAction
+
+func (pa *prAction) GetLabels() ([]sdk.Label, error) {
+	return pa.ghc.GetPRLabels(pa.e.Repository.Namespace, pa.e.Repository.Path, int(pa.e.PullRequest.Number))
+}
+
+func (pa *prAction) removeLabel(lb string) error {
+	return pa.ghc.RemovePRLabel(pa.e.Repository.Namespace, pa.e.Repository.Path, int(pa.e.PullRequest.Number), lb)
+}
+
+func (pa *prAction) addLabel(lb string) error {
+	return pa.ghc.AddPRLabel(pa.e.Repository.Namespace, pa.e.Repository.Path, int(pa.e.PullRequest.Number), lb)
 }
 
 func hasLabel(label string, issueLabels []sdk.Label) bool {

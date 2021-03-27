@@ -35,7 +35,7 @@ func closeIssue(gc closeClient, log *logrus.Entry, e *sdk.NoteEvent) error {
 		return nil
 	}
 	org := e.Repository.Namespace
-	repo := e.Repository.Name
+	repo := e.Repository.Path
 	number := e.Issue.Number
 	commentAuthor := e.Comment.User.Login
 
@@ -50,10 +50,7 @@ func closeIssue(gc closeClient, log *logrus.Entry, e *sdk.NoteEvent) error {
 		response := "You can't close an  issue unless you authored it or you are a collaborator."
 		log.Infof("Commenting \"%s\".", response)
 		return gc.CreateGiteeIssueComment(
-			org,
-			repo,
-			number,
-			plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response),
+			org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response),
 		)
 	}
 	if err := gc.CloseIssue(org, repo, number); err != nil {
@@ -67,7 +64,7 @@ func closePullRequest(gc closeClient, log *logrus.Entry, e *sdk.NoteEvent) error
 		return nil
 	}
 	org := e.Repository.Namespace
-	repo := e.Repository.Name
+	repo := e.Repository.Path
 	number := int(e.PullRequest.Number)
 	commentAuthor := e.Comment.User.Login
 
@@ -83,11 +80,7 @@ func closePullRequest(gc closeClient, log *logrus.Entry, e *sdk.NoteEvent) error
 		response := "You can't close an  PullRequest unless you authored it or you are a collaborator."
 		log.Infof("Commenting \"%s\".", response)
 		return gc.CreatePRComment(
-			org,
-			repo,
-			number,
-			plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response),
-		)
+			org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response))
 	}
 	if err := gc.ClosePR(org, repo, number); err != nil {
 		return fmt.Errorf("Error closing PR: %v ", err)

@@ -18,7 +18,7 @@ type reopenClient interface {
 }
 
 func handleReopen(gc reopenClient, log *logrus.Entry, e *sdk.NoteEvent) error {
-	if isPr(*e.NoteableType) || *e.Action != "comment" || e.Issue.State != "closed" {
+	if isPr(*e.NoteableType) || e.Issue.State != "closed" {
 		return nil
 	}
 	if !reopenRe.MatchString(e.Comment.Body) {
@@ -38,11 +38,7 @@ func handleReopen(gc reopenClient, log *logrus.Entry, e *sdk.NoteEvent) error {
 		response := "You can't reopen an issue/PR unless you authored it or you are a collaborator."
 		log.Infof("Commenting \"%s\".", response)
 		return gc.CreateGiteeIssueComment(
-			org,
-			repo,
-			number,
-			plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response),
-		)
+			org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, response))
 	}
 	err = gc.ReopenIssue(org, repo, number)
 	if err != nil {
@@ -51,9 +47,5 @@ func handleReopen(gc reopenClient, log *logrus.Entry, e *sdk.NoteEvent) error {
 	// Add a comment after reopening the issue to leave an audit trail of who
 	// asked to reopen it.
 	return gc.CreateGiteeIssueComment(
-		org,
-		repo,
-		number,
-		plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, "Reopened this issue."),
-	)
+		org, repo, number, plugins.FormatResponseRaw(e.Comment.Body, e.Comment.HtmlUrl, commentAuthor, "Reopened this issue."))
 }
