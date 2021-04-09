@@ -148,7 +148,7 @@ func (cl *cla) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entry
 	}
 
 	action := plugins.ConvertPullRequestAction(e)
-	if action != github.PullRequestActionOpened {
+	if action != github.PullRequestActionOpened && action != github.PullRequestActionSynchronize {
 		return nil
 	}
 
