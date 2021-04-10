@@ -98,7 +98,7 @@ func (lg *lgtm) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 
 	comment := e.Comment
 	rc := originl.NewReviewCtx(
-		comment.User.Login, pr.Head.User.Login, comment.Body,
+		comment.User.Login, pr.User.Login, comment.Body,
 		comment.HtmlUrl, repo, assignees, int(pr.Number))
 
 	cp := commentpruner.NewEventClient(
@@ -109,11 +109,12 @@ func (lg *lgtm) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 	skipCollaborators := originl.SkipCollaborators(c, repo.Owner.Login, repo.Name)
 	pc, _ := lg.pluginConfig()
 
-	if !skipCollaborators || !pc.LgtmFor(repo.Owner.Login, repo.Name).StrictReview {
+	lgCfg := pc.LgtmFor(repo.Owner.Login, repo.Name)
+	if !skipCollaborators || !lgCfg.StrictReview {
 		return originl.Handle(toAdd, c, lg.oc, rc, lg.ghc, log, cp)
 	}
 
-	return HandleStrictLGTMComment(lg.ghc, lg.oc, log, toAdd, e)
+	return HandleStrictLGTMComment(lg.ghc, lg.oc, log, toAdd, e, lgCfg.MinReviewers)
 }
 
 func (lg *lgtm) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entry) error {
@@ -140,18 +141,19 @@ func (lg *lgtm) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entr
 	pe.Action = plugins.ConvertPullRequestAction(e)
 	pe.PullRequest.Base.Repo.Owner.Login = org
 	pe.PullRequest.Base.Repo.Name = repo
-	pe.PullRequest.User.Login = pr.Head.User.Login
+	pe.PullRequest.User.Login = pr.User.Login
 	pe.PullRequest.Number = int(pr.Number)
 	pe.PullRequest.Head.SHA = pr.Head.Sha
 
 	skipCollaborators := originl.SkipCollaborators(c, org, repo)
 	pc, _ := lg.pluginConfig()
 
-	if !skipCollaborators || !pc.LgtmFor(org, repo).StrictReview {
+	lgCfg := pc.LgtmFor(org, repo)
+	if !skipCollaborators || !lgCfg.StrictReview {
 		return originl.HandlePullRequest(log, lg.ghc, c, &pe)
 	}
 
-	return HandleStrictLGTMPREvent(lg.ghc, &pe)
+	return HandleStrictLGTMPREvent(lg.ghc, &pe, lgCfg.MinReviewers)
 }
 
 func (lg *lgtm) pluginConfig() (*configuration, error) {
