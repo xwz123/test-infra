@@ -27,9 +27,9 @@ func HandleStrictLGTMPREvent(gc *ghclient, e *github.PullRequestEvent, minReview
 	switch e.Action {
 	case github.PullRequestActionOpened:
 		n = &notification{
-			treeHash: sha,
+			treeHash:  sha,
+			minReview: minReview,
 		}
-
 		filenames, err := originl.GetChangedFiles(gc, org, repo, prNumber)
 		if err != nil {
 			return err
