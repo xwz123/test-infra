@@ -4,6 +4,7 @@ import (
 	sdk "gitee.com/openeuler/go-gitee/gitee"
 )
 
+//GetOwnerAndRepoByEvent obtain the owner and repository name from the event
 func GetOwnerAndRepoByEvent(e interface{}) (string, string) {
 	var repository *sdk.ProjectHook
 
@@ -21,4 +22,11 @@ func GetOwnerAndRepoByEvent(e interface{}) (string, string) {
 	}
 
 	return repository.Namespace, repository.Path
+}
+//GetOwnerAndRepoByPRBranch obtain the owner and repository name from the pullrequest's branch
+func GetOwnerAndRepoByPRBranch(prb *sdk.BranchHook) (string, string) {
+	if prb.Repo == nil {
+		return "", ""
+	}
+	return prb.Repo.Namespace, prb.Repo.Path
 }

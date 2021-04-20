@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/test-infra/prow/gitee"
 	"net/http"
 	"regexp"
 	"strings"
@@ -66,31 +67,32 @@ func (cl *cla) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 	defer func() {
 		log.WithField("duration", time.Since(funcStart).String()).Debug("Completed handleNoteEvent")
 	}()
-
-	if *(e.Action) != "comment" {
+	ne := gitee.NewNoteEventWrapper(e)
+	if !ne.IsCreatingCommentEvent() {
 		log.Debug("Event is not a creation of a comment, skipping.")
 		return nil
 	}
 
-	if *(e.NoteableType) != "PullRequest" {
+	if !ne.IsPullRequest() {
 		return nil
 	}
 
 	// Only consider "/check-cla" comments.
-	if !checkCLARe.MatchString(e.Comment.Body) {
+	if !checkCLARe.MatchString(ne.GetComment()) {
 		return nil
 	}
 
-	pr := e.PullRequest
-	org := e.Repository.Namespace
-	repo := e.Repository.Path
+	return cl.handlePullRequestComment(gitee.NewPRNoteEvent(e), log)
+}
 
+func (cl *cla) handlePullRequestComment(e gitee.PRNoteEvent, log *logrus.Entry) error {
+	org, repo := gitee.GetOwnerAndRepoByEvent(e.NoteEvent)
 	cfg, err := cl.orgRepoConfig(org, repo)
 	if err != nil {
 		return err
 	}
 
-	prNumber := int(pr.Number)
+	prNumber := e.GetPRNumber()
 	cInf, signed, err := cl.getPrCommitsAbout(org, repo, prNumber, cfg.CheckURL)
 	if err != nil {
 		return err
@@ -98,6 +100,7 @@ func (cl *cla) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 
 	hasCLAYes := false
 	hasCLANo := false
+	pr := e.PullRequest
 	for _, label := range pr.Labels {
 		if !hasCLAYes && label.Name == cfg.CLALabelYes {
 			hasCLAYes = true
@@ -133,7 +136,6 @@ func (cl *cla) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 		}
 	}
 	return cl.ghc.CreateComment(org, repo, prNumber, signGuide(cfg.SignURL, "gitee", cInf))
-
 }
 
 func (cl *cla) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entry) error {
@@ -153,8 +155,7 @@ func (cl *cla) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entry
 	}
 
 	pr := e.PullRequest
-	org := pr.Base.Repo.Namespace
-	repo := pr.Base.Repo.Path
+	org, repo := gitee.GetOwnerAndRepoByPRBranch(pr.Base)
 
 	cfg, err := cl.orgRepoConfig(org, repo)
 	if err != nil {

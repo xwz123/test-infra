@@ -1,7 +1,10 @@
 package plugins
 
 import (
+	"fmt"
 	"strings"
+
+	pgitee "k8s.io/test-infra/prow/gitee"
 
 	"gitee.com/openeuler/go-gitee/gitee"
 	"k8s.io/test-infra/prow/github"
@@ -165,4 +168,59 @@ func convertPullRequestLabel(e *gitee.PullRequestEvent) []github.Label {
 		return r
 	*/
 	return []github.Label{}
+}
+
+func checkNoteEvent(e *gitee.NoteEvent) error {
+	eventType := "note event"
+	ne := pgitee.NewNoteEventWrapper(e)
+	if ne.Comment == nil {
+		return fmtCheckError(eventType, "comment")
+	}
+	if ne.IsPullRequest() {
+		return checkPullRequestHook(ne.PullRequest, eventType)
+	}
+	if ne.IsIssue() && ne.Issue == nil {
+		return fmtCheckError(eventType, "issue")
+	}
+	return checkRepository(e.Repository, eventType)
+}
+
+func checkIssueEvent(e *gitee.IssueEvent) error {
+	eventType := "issue event"
+	if e.Issue == nil {
+		return fmtCheckError(eventType, "issue")
+	}
+	return checkRepository(e.Repository, eventType)
+}
+
+func checkPullRequestEvent(e *gitee.PullRequestEvent) error {
+	eventType := "pull request event"
+	if err := checkPullRequestHook(e.PullRequest, eventType); err != nil {
+		return err
+	}
+	return checkRepository(e.Repository, eventType)
+}
+
+func checkPullRequestHook(pr *gitee.PullRequestHook, eventType string) error {
+	if pr == nil {
+		return fmtCheckError(eventType, "pull_request")
+	}
+	if pr.Head == nil || pr.Base == nil {
+		return fmtCheckError(eventType, "pull_request.head or pull_request.base")
+	}
+	return nil
+}
+
+func checkRepository(rep *gitee.ProjectHook, eventType string) error {
+	if rep == nil {
+		return fmtCheckError(eventType, "pull_request")
+	}
+	if rep.Namespace == "" || rep.Path == "" {
+		return fmtCheckError(eventType, "pull_request.namespace or pull_request.path")
+	}
+	return nil
+}
+
+func fmtCheckError(eventType, field string) error {
+	return fmt.Errorf("%s is illegal: the %s field is empty", eventType, field)
 }
