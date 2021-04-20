@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/test-infra/prow/gitee"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,7 +11,9 @@ import (
 
 	sdk "gitee.com/openeuler/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
+
 	prowConfig "k8s.io/test-infra/prow/config"
+	"k8s.io/test-infra/prow/gitee"
 	plugins "k8s.io/test-infra/prow/gitee-plugins"
 	"k8s.io/test-infra/prow/github"
 	"k8s.io/test-infra/prow/pluginhelp"
@@ -27,6 +28,7 @@ type cla struct {
 	ghc             *ghclient
 }
 
+//NewCLA create a cla plugin
 func NewCLA(f plugins.GetPluginConfig, gec giteeClient) plugins.Plugin {
 	return &cla{
 		getPluginConfig: f,

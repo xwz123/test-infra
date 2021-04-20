@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	hook "k8s.io/test-infra/prow/gitee-hook"
-
 	"gitee.com/openeuler/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
+
+	hook "k8s.io/test-infra/prow/gitee-hook"
 	"k8s.io/test-infra/prow/github"
 )
 
