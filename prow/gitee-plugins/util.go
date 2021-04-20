@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	pgitee "k8s.io/test-infra/prow/gitee"
+	sdk "gitee.com/openeuler/go-gitee/gitee"
 
-	"gitee.com/openeuler/go-gitee/gitee"
+	"k8s.io/test-infra/prow/gitee"
 	"k8s.io/test-infra/prow/github"
 )
 
-func NoteEventToCommentEvent(e *gitee.NoteEvent) github.GenericCommentEvent {
+func NoteEventToCommentEvent(e *sdk.NoteEvent) github.GenericCommentEvent {
 	gc := github.GenericCommentEvent{
 		Repo: github.Repo{
 			Owner: github.User{
@@ -35,7 +35,7 @@ func NoteEventToCommentEvent(e *gitee.NoteEvent) github.GenericCommentEvent {
 	return gc
 }
 
-func convertNoteEventAction(e *gitee.NoteEvent) github.GenericCommentEventAction {
+func convertNoteEventAction(e *sdk.NoteEvent) github.GenericCommentEventAction {
 	var a github.GenericCommentEventAction
 
 	switch *(e.Action) {
@@ -45,7 +45,7 @@ func convertNoteEventAction(e *gitee.NoteEvent) github.GenericCommentEventAction
 	return a
 }
 
-func convertAssignees(assignees []gitee.UserHook) []github.User {
+func convertAssignees(assignees []sdk.UserHook) []github.User {
 	r := make([]github.User, len(assignees))
 	for i, item := range assignees {
 		r[i] = github.User{Login: item.Login}
@@ -53,7 +53,7 @@ func convertAssignees(assignees []gitee.UserHook) []github.User {
 	return r
 }
 
-func setPullRequestInfo(e *gitee.NoteEvent, gc *github.GenericCommentEvent) {
+func setPullRequestInfo(e *sdk.NoteEvent, gc *github.GenericCommentEvent) {
 	pr := e.PullRequest
 	gc.IsPR = true
 	gc.IssueState = pr.State
@@ -64,7 +64,7 @@ func setPullRequestInfo(e *gitee.NoteEvent, gc *github.GenericCommentEvent) {
 	gc.Assignees = convertAssignees(pr.Assignees)
 }
 
-func ConvertPullRequestEvent(e *gitee.PullRequestEvent) github.PullRequestEvent {
+func ConvertPullRequestEvent(e *sdk.PullRequestEvent) github.PullRequestEvent {
 	epr := e.PullRequest
 	pe := github.PullRequestEvent{
 		Action: ConvertPullRequestAction(e),
@@ -104,7 +104,7 @@ func ConvertPullRequestEvent(e *gitee.PullRequestEvent) github.PullRequestEvent 
 	return pe
 }
 
-func ConvertPushEvent(e *gitee.PushEvent) github.PushEvent {
+func ConvertPushEvent(e *sdk.PushEvent) github.PushEvent {
 	pe := github.PushEvent{
 		GUID:    "", //TODO
 		Ref:     *(e.Ref),
@@ -122,7 +122,7 @@ func ConvertPushEvent(e *gitee.PushEvent) github.PushEvent {
 	return pe
 }
 
-func convertPushCommits(e *gitee.PushEvent) []github.Commit {
+func convertPushCommits(e *sdk.PushEvent) []github.Commit {
 	r := make([]github.Commit, 0, len(e.Commits))
 	for _, i := range e.Commits {
 		r = append(r, github.Commit{
@@ -136,7 +136,7 @@ func convertPushCommits(e *gitee.PushEvent) []github.Commit {
 	return r
 }
 
-func ConvertPullRequestAction(e *gitee.PullRequestEvent) github.PullRequestEventAction {
+func ConvertPullRequestAction(e *sdk.PullRequestEvent) github.PullRequestEventAction {
 	var a github.PullRequestEventAction
 
 	switch strings.ToLower(*(e.Action)) {
@@ -158,7 +158,7 @@ func ConvertPullRequestAction(e *gitee.PullRequestEvent) github.PullRequestEvent
 	return a
 }
 
-func convertPullRequestLabel(e *gitee.PullRequestEvent) []github.Label {
+func convertPullRequestLabel(e *sdk.PullRequestEvent) []github.Label {
 	/*
 		r := make([]github.Label, 0, len(e.PullRequest.Labels))
 
@@ -170,14 +170,16 @@ func convertPullRequestLabel(e *gitee.PullRequestEvent) []github.Label {
 	return []github.Label{}
 }
 
-func checkNoteEvent(e *gitee.NoteEvent) error {
+func checkNoteEvent(e *sdk.NoteEvent) error {
 	eventType := "note event"
-	ne := pgitee.NewNoteEventWrapper(e)
+	ne := gitee.NewNoteEventWrapper(e)
 	if ne.Comment == nil {
 		return fmtCheckError(eventType, "comment")
 	}
 	if ne.IsPullRequest() {
-		return checkPullRequestHook(ne.PullRequest, eventType)
+		if err := checkPullRequestHook(ne.PullRequest, eventType); err != nil {
+			return err
+		}
 	}
 	if ne.IsIssue() && ne.Issue == nil {
 		return fmtCheckError(eventType, "issue")
@@ -185,7 +187,7 @@ func checkNoteEvent(e *gitee.NoteEvent) error {
 	return checkRepository(e.Repository, eventType)
 }
 
-func checkIssueEvent(e *gitee.IssueEvent) error {
+func checkIssueEvent(e *sdk.IssueEvent) error {
 	eventType := "issue event"
 	if e.Issue == nil {
 		return fmtCheckError(eventType, "issue")
@@ -193,7 +195,7 @@ func checkIssueEvent(e *gitee.IssueEvent) error {
 	return checkRepository(e.Repository, eventType)
 }
 
-func checkPullRequestEvent(e *gitee.PullRequestEvent) error {
+func checkPullRequestEvent(e *sdk.PullRequestEvent) error {
 	eventType := "pull request event"
 	if err := checkPullRequestHook(e.PullRequest, eventType); err != nil {
 		return err
@@ -201,7 +203,7 @@ func checkPullRequestEvent(e *gitee.PullRequestEvent) error {
 	return checkRepository(e.Repository, eventType)
 }
 
-func checkPullRequestHook(pr *gitee.PullRequestHook, eventType string) error {
+func checkPullRequestHook(pr *sdk.PullRequestHook, eventType string) error {
 	if pr == nil {
 		return fmtCheckError(eventType, "pull_request")
 	}
@@ -211,7 +213,7 @@ func checkPullRequestHook(pr *gitee.PullRequestHook, eventType string) error {
 	return nil
 }
 
-func checkRepository(rep *gitee.ProjectHook, eventType string) error {
+func checkRepository(rep *sdk.ProjectHook, eventType string) error {
 	if rep == nil {
 		return fmtCheckError(eventType, "pull_request")
 	}

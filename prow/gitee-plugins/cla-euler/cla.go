@@ -1,4 +1,4 @@
-//package claeuler implements a check cla plugin for openEuler community
+//Package claeuler implements a check cla plugin for openEuler community
 package claeuler
 
 import (
@@ -71,7 +71,7 @@ func (cl *cla) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 		log.WithField("duration", time.Since(funcStart).String()).Debug("Completed handleNoteEvent")
 	}()
 
-	ne := gitee.NewNoteEventWrapper(e)
+	ne := gitee.NewPRNoteEvent(e)
 	if !ne.IsCreatingCommentEvent() {
 		log.Debug("Event is not a creation of a comment, skipping.")
 		return nil
@@ -86,11 +86,11 @@ func (cl *cla) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 		return nil
 	}
 
-	return cl.handlePullRequestComment(gitee.NewPRNoteEvent(e), log)
+	return cl.handlePullRequestComment(ne, log)
 }
 
 func (cl *cla) handlePullRequestComment(e gitee.PRNoteEvent, log *logrus.Entry) error {
-	org, repo := gitee.GetOwnerAndRepoByEvent(e.NoteEvent)
+	org, repo := e.GetOrgRep()
 	cfg, err := cl.orgRepoConfig(org, repo)
 	if err != nil {
 		return err
@@ -148,19 +148,23 @@ func (cl *cla) handlePullRequestEvent(e *sdk.PullRequestEvent, log *logrus.Entry
 		log.WithField("duration", time.Since(funcStart).String()).Debug("Completed handlePullRequest")
 	}()
 
+	if e.PullRequest.State != "open" {
+		log.Debug("Pull request state is not open, skipping...")
+		return nil
+	}
+
 	action := plugins.ConvertPullRequestAction(e)
 	if action != github.PullRequestActionOpened && action != github.PullRequestActionSynchronize {
 		return nil
 	}
 
-	pr := e.PullRequest
-	org, repo := gitee.GetOwnerAndRepoByPRBranch(pr.Base)
-
+	org, repo := gitee.GetOwnerAndRepoByPREvent(e)
 	cfg, err := cl.orgRepoConfig(org, repo)
 	if err != nil {
 		return err
 	}
 
+	pr := e.PullRequest
 	prNumber := int(pr.Number)
 	cInf, signed, err := cl.getPrCommitsAbout(org, repo, prNumber, cfg.CheckURL)
 	if err != nil {
