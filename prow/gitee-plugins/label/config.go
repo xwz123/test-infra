@@ -25,7 +25,7 @@ func (cfg *configuration) SetDefault() {
 
 }
 
-func (cfg *configuration) LabelFor(org, repo string) *labelCfg {
+func (cfg *configuration) labelFor(org, repo string) *labelCfg {
 	fullName := fmt.Sprintf("%s/%s", org, repo)
 
 	index := -1

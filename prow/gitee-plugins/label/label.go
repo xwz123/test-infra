@@ -5,14 +5,14 @@ import (
 	"regexp"
 	"strings"
 
+	sdk "gitee.com/openeuler/go-gitee/gitee"
+	"github.com/sirupsen/logrus"
+
 	prowConfig "k8s.io/test-infra/prow/config"
 	"k8s.io/test-infra/prow/gitee"
 	plugins "k8s.io/test-infra/prow/gitee-plugins"
 	"k8s.io/test-infra/prow/github"
 	"k8s.io/test-infra/prow/pluginhelp"
-
-	sdk "gitee.com/openeuler/go-gitee/gitee"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -42,6 +42,7 @@ type label struct {
 	getPluginConfig plugins.GetPluginConfig
 }
 
+//NewLabel create a label plugin
 func NewLabel(f plugins.GetPluginConfig, gec giteeClient) plugins.Plugin {
 	return &label{ghc: gec, getPluginConfig: f}
 }
@@ -95,7 +96,7 @@ func (l *label) orgRepoCfg(org, repo string) (*labelCfg, error) {
 	if err != nil {
 		return nil, err
 	}
-	labelCfg := cfg.LabelFor(org, repo)
+	labelCfg := cfg.labelFor(org, repo)
 	if labelCfg == nil {
 		return nil, fmt.Errorf("no label plugin config for this repo:%s/%s", org, repo)
 	}
@@ -139,7 +140,7 @@ func (l *label) handlePRCommentEvent(e gitee.PRNoteEvent, addMatches, rmMatches 
 	org, repo := gitee.GetOwnerAndRepoByEvent(e.NoteEvent)
 	number := e.GetPRNumber()
 	action := &prNoteAction{l.ghc, org, repo, number}
-	repoLabels, prLabels, err := l.getRepoAndCommentOBJLabels(action, org, repo)
+	repoLabels, prLabels, err := l.getRepoAndCommentObjLabels(action, org, repo)
 	if err != nil {
 		return err
 	}
@@ -156,7 +157,7 @@ func (l *label) handleIssueCommentEvent(e gitee.IssueNoteEvent, addMatches, rmMa
 	org, repo := gitee.GetOwnerAndRepoByEvent(e.NoteEvent)
 	number := e.GetIssueNumber()
 	action := &issueNoteAction{l.ghc, org, repo, number}
-	repoLabels, issueLabels, err := l.getRepoAndCommentOBJLabels(action, org, repo)
+	repoLabels, issueLabels, err := l.getRepoAndCommentObjLabels(action, org, repo)
 	if err != nil {
 		return err
 	}
@@ -169,7 +170,7 @@ func (l *label) handleIssueCommentEvent(e gitee.IssueNoteEvent, addMatches, rmMa
 	return nil
 }
 
-func (l *label) getRepoAndCommentOBJLabels(action noteEventAction, org, repo string) (map[string]string, map[string]string, error) {
+func (l *label) getRepoAndCommentObjLabels(action noteEventAction, org, repo string) (map[string]string, map[string]string, error) {
 	repoLabels, err := l.ghc.GetRepoLabels(org, repo)
 	if err != nil {
 		return nil, nil, err
@@ -257,8 +258,10 @@ func configString(labels []string) string {
 		formattedLabels = append(formattedLabels, fmt.Sprintf(`"%s/*"`, label))
 	}
 	if len(formattedLabels) > 0 {
-		return fmt.Sprintf("The label plugin will work on %s and %s labels.",
-			strings.Join(formattedLabels[:len(formattedLabels)-1], ", "), formattedLabels[len(formattedLabels)-1])
+		return fmt.Sprintf(
+			"The label plugin will work on %s and %s labels.",
+			strings.Join(formattedLabels[:len(formattedLabels)-1], ", "), formattedLabels[len(formattedLabels)-1],
+			)
 	}
 	return ""
 }
