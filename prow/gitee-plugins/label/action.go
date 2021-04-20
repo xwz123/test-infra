@@ -23,7 +23,7 @@ func (ia *issueNoteAction) addLabel(label []string) error {
 }
 
 func (ia *issueNoteAction) addComment(comment string) error {
-	return ia.client.CreateGiteeIssueComment(ia.org, ia.repo, ia.number, comment)
+	return ia.client.CreateIssueComment(ia.org, ia.repo, ia.number, comment)
 }
 
 func (ia *issueNoteAction) removeLabel(label string) error {

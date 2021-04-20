@@ -34,7 +34,7 @@ type giteeClient interface {
 	RemovePRLabel(org, repo string, number int, label string) error
 
 	CreatePRComment(org, repo string, number int, comment string) error
-	CreateGiteeIssueComment(org, repo string, number string, comment string) error
+	CreateIssueComment(org, repo string, number string, comment string) error
 }
 
 type label struct {
@@ -42,7 +42,6 @@ type label struct {
 	getPluginConfig plugins.GetPluginConfig
 }
 
-//NewLabel create a label plugin
 func NewLabel(f plugins.GetPluginConfig, gec giteeClient) plugins.Plugin {
 	return &label{ghc: gec, getPluginConfig: f}
 }
