@@ -12,7 +12,7 @@ import (
 )
 
 func (l *label) handleClearLabel(e *sdk.PullRequestEvent, log *logrus.Entry) error {
-	org, repo := gitee.GetOwnerAndRepoByEvent(e)
+	org, repo := gitee.GetOwnerAndRepoByPREvent(e)
 	cfg, err := l.orgRepoCfg(org, repo)
 	if err != nil {
 		return err

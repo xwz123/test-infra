@@ -4,10 +4,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
-        "action.go",
+        "clear.go",
         "config.go",
         "label.go",
-        "clear.go",
+        "note_handler.go",
     ],
     importpath = "k8s.io/test-infra/prow/gitee-plugins/label",
     visibility = ["//visibility:public"],

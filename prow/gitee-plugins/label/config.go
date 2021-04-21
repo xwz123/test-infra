@@ -7,7 +7,7 @@ import (
 )
 
 type labelCfg struct {
-	// Repos is either of the form org/repos or just org.
+	//Repos is either of the form org/repos or just org.
 	Repos []string `json:"repos" required:"true"`
 	//ClearLabels specifies labels that should be removed when the codes of PR are changed.
 	ClearLabels []string `json:"clear_labels"`
