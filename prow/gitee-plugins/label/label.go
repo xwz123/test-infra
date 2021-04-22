@@ -122,30 +122,100 @@ func (l *label) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 	if len(labelMatches) == 0 && len(removeLabelMatches) == 0 {
 		return nil
 	}
+	return l.handleComment(ne, labelMatches, removeLabelMatches, log)
+}
 
-	needAddLabels := getLabelsFromREMatches(labelMatches)
-	needRemoveLabels := getLabelsFromREMatches(removeLabelMatches)
-	org, repo := ne.GetOrgRep()
-	var neh handler
-	nh := noteHandle{
-		client:       l.ghc,
-		log:          log,
-		addLabels:    needAddLabels,
-		removeLabels: needRemoveLabels,
-		org:          org,
-		repo:         repo,
+func (l *label) handleComment(e gitee.NoteEventWrapper, addMatches, rmMatches [][]string, log *logrus.Entry) error {
+	org, repo := e.GetOrgRep()
+	repoLabelsMap, err := l.getRepoLabels(org, repo)
+	if err != nil {
+		return err
 	}
-	if ne.IsPullRequest() {
-		number := gitee.NewPRNoteEvent(e).GetPRNumber()
-		neh = &prNoteHandle{noteHandle: nh, number: number}
-	} else if ne.IsIssue() {
-		number := gitee.NewIssueNoteEvent(e).GetIssueNumber()
-		neh = &issueNoteHandle{noteHandle: nh, number: number}
+
+	var neh noteHandler
+	if e.IsPullRequest() {
+		number := gitee.NewPRNoteEvent(e.NoteEvent).GetPRNumber()
+		neh = &prNoteHandle{client: l.ghc, org: org, repo: repo, number: number}
+	} else if e.IsIssue() {
+		number := gitee.NewIssueNoteEvent(e.NoteEvent).GetIssueNumber()
+		neh = &issueNoteHandle{client: l.ghc, org: org, repo: repo, number: number}
 	} else {
 		return nil
 	}
 
-	return neh.handleComment()
+	issueLabels, err := neh.getLabels()
+	if err != nil {
+		return err
+	}
+	addLabels := getLabelsFromREMatches(addMatches)
+	rmLabels := getLabelsFromREMatches(rmMatches)
+
+	if len(rmLabels) > 0 {
+		handleRemoveLabels(neh, issueLabels, rmLabels, log)
+	}
+
+	if len(addLabels) > 0 {
+		return handleAddLabels(neh, issueLabels, repoLabelsMap, addLabels)
+	}
+
+	return nil
+}
+
+func (l *label) getRepoLabels(org, repo string) (map[string]string, error) {
+	repoLabels, err := l.ghc.GetRepoLabels(org, repo)
+	if err != nil {
+		return nil, err
+	}
+	return labelsTransformMap(repoLabels), nil
+}
+
+func handleRemoveLabels(handle noteHandler, currentLabels map[string]string, rmLabels []string, log *logrus.Entry) {
+	for _, rmLabel := range rmLabels {
+		if label, ok := currentLabels[rmLabel]; ok {
+			if err := handle.removeLabel(label); err != nil {
+				log.WithError(err).Errorf("Gitee failed to add the following label: %s", label)
+			}
+		}
+	}
+}
+
+func handleAddLabels(handle noteHandler, curLabels, repoLabels map[string]string, labelsToAdd []string) error {
+	var noSuchLabelsInRepo []string
+	var canAddLabel []string
+	for _, labelToAdd := range labelsToAdd {
+		if _, ok := curLabels[labelToAdd]; ok {
+			continue
+		}
+		if label, ok := repoLabels[labelToAdd]; !ok {
+			noSuchLabelsInRepo = append(noSuchLabelsInRepo, labelToAdd)
+		} else {
+			canAddLabel = append(canAddLabel, label)
+		}
+	}
+	if len(canAddLabel) > 0 {
+		if err := handle.addLabel(canAddLabel); err != nil {
+			return err
+		}
+	}
+
+	if len(noSuchLabelsInRepo) > 0 {
+		msg := fmt.Sprintf(
+			"The label(s) `%s` cannot be applied, because the repository doesn't have them",
+			strings.Join(noSuchLabelsInRepo, ", "),
+		)
+		return handle.addComment(msg)
+	}
+
+	return nil
+}
+
+func labelsTransformMap(labels []sdk.Label) map[string]string {
+	lm := make(map[string]string, len(labels))
+	for _, v := range labels {
+		k := strings.ToLower(v.Name)
+		lm[k] = v.Name
+	}
+	return lm
 }
 
 // Get Labels from Regexp matches
