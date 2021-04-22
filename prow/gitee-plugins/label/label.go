@@ -127,11 +127,6 @@ func (l *label) handleNoteEvent(e *sdk.NoteEvent, log *logrus.Entry) error {
 
 func (l *label) handleComment(e gitee.NoteEventWrapper, addMatches, rmMatches [][]string, log *logrus.Entry) error {
 	org, repo := e.GetOrgRep()
-	repoLabelsMap, err := l.getRepoLabels(org, repo)
-	if err != nil {
-		return err
-	}
-
 	var neh noteHandler
 	if e.IsPullRequest() {
 		number := gitee.NewPRNoteEvent(e.NoteEvent).GetPRNumber()
@@ -155,6 +150,10 @@ func (l *label) handleComment(e gitee.NoteEventWrapper, addMatches, rmMatches []
 	}
 
 	if len(addLabels) > 0 {
+		repoLabelsMap, err := l.getRepoLabels(org, repo)
+		if err != nil {
+			return err
+		}
 		return handleAddLabels(neh, issueLabels, repoLabelsMap, addLabels)
 	}
 
