@@ -3,6 +3,7 @@ package gitee
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -199,7 +200,14 @@ func (c *client) GetPullRequestChanges(org, repo string, number int) ([]github.P
 	var r []github.PullRequestChange
 
 	for _, f := range fs {
-		r = append(r, github.PullRequestChange{Filename: f.Filename})
+		r = append(r, github.PullRequestChange{
+			Filename: f.Filename,
+			SHA:f.Sha,
+			Status:f.Status,
+			Additions:stringToInt(f.Additions),
+			Deletions:stringToInt(f.Deletions),
+			BlobURL:f.BlobUrl,
+		})
 	}
 	return r, nil
 }
@@ -495,10 +503,26 @@ func (c *client) GetIssueLabels(org, repo, number string) ([]sdk.Label, error) {
 	return labels, formatErr(err, "get issue labels")
 }
 
+//GetPathContent Get the content under a specific repository
+func (c *client) GetPathContent(owner, repo, path, ref string) (sdk.Content, error) {
+	op := sdk.GetV5ReposOwnerRepoContentsPathOpts{}
+	op.Ref = optional.NewString(ref)
+	content, _, err := c.ac.RepositoriesApi.GetV5ReposOwnerRepoContentsPath(context.Background(), owner, repo, path, &op)
+	return content, formatErr(err, "get path content")
+}
+
 func formatErr(err error, doWhat string) error {
 	if err == nil {
 		return err
 	}
 
 	return fmt.Errorf("Failed to %s: %s", doWhat, err.Error())
+}
+
+func stringToInt(num string) int {
+	rs, err := strconv.Atoi(num)
+	if err != nil{
+		return 0
+	}
+	return rs
 }
