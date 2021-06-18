@@ -3,7 +3,6 @@ package gitee
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -201,12 +200,12 @@ func (c *client) GetPullRequestChanges(org, repo string, number int) ([]github.P
 
 	for _, f := range fs {
 		r = append(r, github.PullRequestChange{
-			Filename: f.Filename,
-			SHA:f.Sha,
-			Status:f.Status,
-			Additions:stringToInt(f.Additions),
-			Deletions:stringToInt(f.Deletions),
-			BlobURL:f.BlobUrl,
+			Filename:  f.Filename,
+			SHA:       f.Sha,
+			Status:    f.Status,
+			Additions: stringToInt(f.Additions),
+			Deletions: stringToInt(f.Deletions),
+			BlobURL:   f.BlobUrl,
 		})
 	}
 	return r, nil
@@ -517,12 +516,4 @@ func formatErr(err error, doWhat string) error {
 	}
 
 	return fmt.Errorf("Failed to %s: %s", doWhat, err.Error())
-}
-
-func stringToInt(num string) int {
-	rs, err := strconv.Atoi(num)
-	if err != nil{
-		return 0
-	}
-	return rs
 }
